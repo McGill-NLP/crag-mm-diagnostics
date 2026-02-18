@@ -7,6 +7,7 @@ import io
 import base64
 
 import vllm
+import torch
 from transformers import AutoProcessor, AutoModelForZeroShotObjectDetection
 
 from models.base_agent import BaseAgent
@@ -37,7 +38,7 @@ class AdvancedRAG(BaseAgent):
         # VLLM configuration
         self.max_gen_len = 64
         # GPU utilization settings 
-        self.vllm_tensor_parallel_size=1
+        self.vllm_tensor_parallel_size=torch.cuda.device_count()
         self.vllm_gpu_memory_utilization=0.65
         # These are model specific parameters to get the model to run on a single NVIDIA L40s GPU
         self.max_model_len = 8192

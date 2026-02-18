@@ -742,7 +742,23 @@ def main() -> None:
             f"[bold green]Loading only ambiguous classified label [/bold green] {dataset[0]}"
         )
         
-    evaluator = RAGEvaluator(
+    if args.model_type =="PrecomputedRetrievalAdvancedRAG":
+        evaluator = RAGEvaluator(
+            dataset= dataset,
+            model_type=args.model_type,
+            agent=TargetAgent(
+                search_pipeline=search_pipeline, 
+                model_name=args.model_name,
+                rag_type=args.rag_type,
+            ),
+            eval_model_name=args.eval_model,
+            num_conversations=args.num_conversations,
+            show_progress=not args.no_progress,
+            num_workers=args.num_workers,
+            prebuilt_retrieval_info_path=args.prebuilt_retrieval_info_path,
+        )
+    else:
+        evaluator = RAGEvaluator(
         dataset= dataset,
         model_type=args.model_type,
         agent=TargetAgent(
