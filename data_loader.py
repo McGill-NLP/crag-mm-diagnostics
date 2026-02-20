@@ -111,8 +111,8 @@ class DataBatchIterator:
                     # convert to PIL image
                     boxed_image_pil =  Image.fromarray(cv2.cvtColor(boxed_image, cv2.COLOR_BGR2RGB))
 
-                    print("DEBUG: using cropped image for ablation!!!!")
-                    boxed_image_pil = image.crop(tuple(map(float, resized_bbox)))
+                    # print("DEBUG: using cropped image for ablation!!!!")
+                    # boxed_image_pil = image.crop(tuple(map(float, resized_bbox)))
 
                     if self.task_type == "object_identification":
                         query = query
