@@ -3,8 +3,6 @@ import urllib.parse
 import hashlib
 import requests
 from PIL import Image
-import time
-import chromadb
 
 from rich.table import Table
 from rich.panel import Panel
@@ -19,6 +17,7 @@ import json
 from mwviews.api import PageviewsClient
 from collections import defaultdict
 
+import difflib
 
 def filter_entity_attributes(entity_info_dict) -> Dict[str, Any]:
     """Filter out unnecessary entity attributes."""
@@ -393,3 +392,53 @@ def calculate_distance(image_size, roi_bbox):
     normalized_distance = distance / image_diagonal if image_diagonal != 0 else 0
     
     return normalized_distance
+
+def fuzzy_match(ground_truth, pred_list, threshold=0.85):
+    """
+    Check if any prediction fuzzy-matches the ground truth above threshold.
+    Returns True if match found, else False.
+    """
+    for pred in pred_list:
+        similarity = difflib.SequenceMatcher(None, ground_truth.lower(), pred.lower()).ratio()
+        if similarity >= threshold:
+            return True
+    return False
+
+def recall_at_k(retrieval_targets, gt_entity_name, wikiurl_extracted_gt_entity_name, k_list=[5, 10, 20, 30]):
+    """
+    Calculate recall@k for a list of retrieval targets.
+    retrieval_targets: list of dicts, each with 'entities' key (list of dicts with 'entity_name')
+    gt_entity_name: str, ground truth entity name
+    k_list: list of int, values of k to compute recall@k
+    Returns: dict of recall@k values
+    """
+    recalls = {}
+    for k in k_list:
+        found = False
+        target_candidates = retrieval_targets[:k] if retrieval_targets else []
+        for rank, retrieval_target in enumerate(target_candidates):
+            cand_ents_names = [ent['entity_name'].lower() for ent in retrieval_target['entities']]
+            # 1st verification if retrieved items matched with specified entity name
+            common_ents = fuzzy_match(gt_entity_name, cand_ents_names)
+            if common_ents:
+                found = True
+                break
+            
+            # 2nd verification if retrieved items matched with wikipedia url linked entity info
+            common_ents = fuzzy_match(wikiurl_extracted_gt_entity_name, cand_ents_names)
+            if common_ents:
+                found = True
+                break
+
+        recalls[f"recall@{k}"] = int(found)
+    
+    return recalls
+
+def average_recall_at_k(all_retrieval_targets, all_gt_entity_names, all_gt_entity_names_from_wiki, k_list=[5, 10, 20, 30]):
+    recall_sums = {f"recall@{k}": 0 for k in k_list}
+    total = len(all_gt_entity_names)
+    for retrieval_targets, gt_entity_name, gt_entity_name_wiki in zip(all_retrieval_targets, all_gt_entity_names, all_gt_entity_names_from_wiki):
+        recalls = recall_at_k(retrieval_targets, gt_entity_name, gt_entity_name_wiki, k_list)
+        for k in k_list:
+            recall_sums[f"recall@{k}"] += recalls[f"recall@{k}"]
+    return {k: recall_sums[k] / total for k in recall_sums}
