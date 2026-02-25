@@ -139,7 +139,6 @@ class ModularEvaluation:
                     messages=input,
             )
             output_text = completion.choices[0].message.content.strip()
-            print("DEBUG API output:",output_text)
             outputs.append(output_text)
 
         return outputs
@@ -869,6 +868,13 @@ if __name__ == "__main__":
         help="Evaluation only with the ambiguous classified label.",
     )
     args = parser.parse_args()
+
+    if args.eval_model.lower() == "none":
+        args.eval_model = None
+        console.print(
+            "[bold red]WARNING: SEMANTIC EVALUATION IS DISABLED[/bold red]\n"
+            "No calls to LLM-as-a-Judge will be made!"
+        )
 
     console.print(
         f"[bold green]Loading dataset from {args.source_dataset_path} [/bold green] "

@@ -132,9 +132,9 @@ class PrecomputedRetrievalAdvancedRAG(BaseAgent):
             except Exception as e:
                 error_message = f"API call failed on attempt {attempt + 1}/{max_retries}: {str(e)}"
                 if attempt == max_retries - 1:
-                    console(f"[red]Failed after {max_retries} attempts: {str(e)}[/red]")
-                # else:
-                    console(f"[yellow]{error_message}, retrying...[/yellow]")
+                    console.print(f"[red]Failed after {max_retries} attempts: {str(e)}[/red]")
+                else:
+                    console.print(f"[yellow]{error_message}, retrying...[/yellow]")
         return None
     
     def truncate_to_token_limit(self, text, max_tokens):
