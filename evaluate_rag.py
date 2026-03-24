@@ -86,7 +86,7 @@ class RAGEvaluator:
         self.all_turn_data: list[dict[str, any]] = []
         self.session_ids_evaluated: set[str] = set()
         
-        self.tokenizer = Tokenizer.from_pretrained("meta-llama/Llama-3.2-1B-Instruct")
+        self.tokenizer = Tokenizer.from_pretrained(agent.model_name)
 
     @staticmethod
     def get_system_message() -> str:
@@ -309,9 +309,13 @@ class RAGEvaluator:
 
             # Generate responses for the current batch
             if self.model_type =="AdvancedRAG":
+                # Handle text-only mode: replace queries with textual-only versions and set images to None
+                if args and hasattr(args, 'text_only_mode') and args.text_only_mode:
+                    queries = textual_only_queries
+                    images = [None] * len(queries)
                 batch_response = self.agent.batch_generate_response(
-                    queries, 
-                    images, 
+                    queries,
+                    images,
                     message_histories,
                 )
             elif self.model_type =="PrecomputedRetrievalAdvancedRAG":
@@ -647,11 +651,31 @@ def main() -> None:
         type=str,
         required=False,
         choices=[
-            "image_only", "dino_cropped_image_only", "gt_cropped_image_only", 
+            "image_only", "dino_cropped_image_only", "gt_cropped_image_only",
             "text_only","text_only_w_textual_only_query",
             "both_normal_image_text","both_dino_cropped_image_text","both_gt_cropped_image_text",
             "no_augmentation","no_augmentation_text_only"],
         help='RAG type to evaluate for : ("PrecomputedRetrievalAdvancedRAG")',
+    )
+    parser.add_argument(
+        "--no-image-search",
+        action="store_true",
+        help="Disable image retrieval in AdvancedRAG",
+    )
+    parser.add_argument(
+        "--no-text-search",
+        action="store_true",
+        help="Disable text retrieval in AdvancedRAG",
+    )
+    parser.add_argument(
+        "--no-grounding",
+        action="store_true",
+        help="Disable Grounding DINO visual grounding in AdvancedRAG",
+    )
+    parser.add_argument(
+        "--text-only-mode",
+        action="store_true",
+        help="Use textual-only queries and no images (for text-only evaluation in AdvancedRAG)",
     )
     
     args = parser.parse_args()
@@ -684,39 +708,45 @@ def main() -> None:
     if args.num_conversations == -1:
         args.num_conversations = len(dataset)
 
-    if not args.skip_search and args.model_type !="PrecomputedRetrievalAdvancedRAG":
-        if args.retriever_type == "separate":
-            # In our experiments, we use default image and text retriever for separate modality type.
-            search_api_text_model_name = "BAAI/bge-large-en-v1.5"
-            search_api_image_model_name = "openai/clip-vit-large-patch14-336"
-            
-            search_pipeline = CustomSearchPipeline(
-                retriever_type=args.retriever_type,
-                text_model_name=search_api_text_model_name,
-                image_model_name=search_api_image_model_name,
-                web_hf_dataset_id=args.web_hf_index_id if not args.suppress_web_search_api else None,
-                image_hf_dataset_id=args.image_hf_index_id
-            )
-        elif args.retriever_type == "mllm":
-            search_pipeline = CustomSearchPipeline(
-                retriever_type=args.retriever_type,
-                web_hf_dataset_id=None, # We only use image retriever for Qwen3-VL-Embedding-2B in our experiments, so text_index_path is set to None
-                image_hf_dataset_id=args.image_hf_index_id,
-                multimodal_model_name=args.retriever_model_name,
-            )
-    else:
-        search_pipeline=None
-    
     predicted_file_path = os.path.join(args.output_dir, "prediction_result.json")
     console.print(f"[green]Checking existing predictions file exists from {predicted_file_path}[/green]")
     if os.path.exists(predicted_file_path):
         TargetAgent = BaseAgent
+        search_pipeline = None
     else:
+        # Load search pipeline (only needed when generating new predictions)
+        if not args.skip_search and args.model_type !="PrecomputedRetrievalAdvancedRAG":
+            effective_web_hf_id = args.web_hf_index_id if not args.suppress_web_search_api else None
+            effective_image_hf_id = args.image_hf_index_id
+            if hasattr(args, 'no_text_search') and args.no_text_search:
+                effective_web_hf_id = None
+            if hasattr(args, 'no_image_search') and args.no_image_search:
+                effective_image_hf_id = None
+
+            if args.retriever_type == "separate":
+                search_api_text_model_name = "BAAI/bge-large-en-v1.5"
+                search_api_image_model_name = "openai/clip-vit-large-patch14-336"
+                search_pipeline = CustomSearchPipeline(
+                    retriever_type=args.retriever_type,
+                    text_model_name=search_api_text_model_name,
+                    image_model_name=search_api_image_model_name,
+                    web_hf_dataset_id=effective_web_hf_id,
+                    image_hf_dataset_id=effective_image_hf_id
+                )
+            elif args.retriever_type == "mllm":
+                search_pipeline = CustomSearchPipeline(
+                    retriever_type=args.retriever_type,
+                    web_hf_dataset_id=None,
+                    image_hf_dataset_id=effective_image_hf_id,
+                    multimodal_model_name=args.retriever_model_name,
+                )
+        else:
+            search_pipeline = None
+
         if args.model_type =="AdvancedRAG":
             TargetAgent = AdvancedRAG
         elif args.model_type =="PrecomputedRetrievalAdvancedRAG":
             TargetAgent = PrecomputedRetrievalAdvancedRAG
-            
             assert args.prebuilt_retrieval_info_path is not None, "Prebuilt retrieval info path is required for PrecomputedRetrievalAdvancedRAG"
         elif args.model_type=="Retriever":
             TargetAgent = Retriever
@@ -746,9 +776,14 @@ def main() -> None:
         search_pipeline=search_pipeline,
         model_name=args.model_name,
     )
-    if args.model_type == "PrecomputedRetrievalAdvancedRAG" and not os.path.exists(predicted_file_path):
-        agent_kwargs["rag_type"] = args.rag_type
-
+    if TargetAgent is not BaseAgent:
+        if args.model_type == "AdvancedRAG":
+            agent_kwargs["activate_image_search"] = not args.no_image_search
+            agent_kwargs["activate_text_search"] = not args.no_text_search
+            agent_kwargs["segment_image_query"] = not args.no_grounding
+        if args.model_type == "PrecomputedRetrievalAdvancedRAG":
+            agent_kwargs["rag_type"] = args.rag_type
+            
     evaluator = RAGEvaluator(
             dataset= dataset,
             model_type=args.model_type,

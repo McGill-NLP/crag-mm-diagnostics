@@ -26,19 +26,31 @@ class MockWeb(object):
         
         client = chromadb.PersistentClient(path=text_index_path)
         self.vector_db = client.get_or_create_collection(name="web_search_embeddings")
-        self.index_to_metadata = dict(zip(self.vector_db.get()['ids'], self.vector_db.get(include=["metadatas"])['metadatas']))
+        
+        # Lazy-load metadata on demand (avoids loading all 1.68M entries at init)
+        self.index_to_metadata = {}
+        total_count = self.vector_db.count()
+        print(f"MockWeb initialized: {total_count} entries (lazy metadata loading)")
 
+    def _ensure_metadata(self, idx):
+        idx_str = str(idx)
+        if idx_str not in self.index_to_metadata:
+            result = self.vector_db.get(ids=[idx_str], include=["metadatas"])
+            if result["metadatas"]:
+                self.index_to_metadata[idx_str] = result["metadatas"][0]
+        return self.index_to_metadata[idx_str]
+    
     def get_page_name(self, idx):
         # Return the page name for a given index
-        return self.index_to_metadata[str(idx)]["page_name"]
+        return self._ensure_metadata(idx)["page_name"]
 
     def get_page_snippet(self, idx):
         # Return the page name for a given index
-        return self.index_to_metadata[str(idx)]["page_snippet"]
+        return self._ensure_metadata(idx)["page_snippet"]
 
     def get_page_url(self, idx):
         # Return the page URL for a given index
-        return self.index_to_metadata[str(idx)]["page_url"]
+        return self._ensure_metadata(idx)["page_url"]
 
 
 class ImageKG(object):

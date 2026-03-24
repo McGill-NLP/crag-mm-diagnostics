@@ -20,24 +20,30 @@ class AdvancedRAG(BaseAgent):
     def __init__(
         self, 
         search_pipeline: CustomSearchPipeline,
-        model_name="meta-llama/Llama-3.2-11B-Vision-Instruct"
+        model_name="meta-llama/Llama-3.2-11B-Vision-Instruct",
+        activate_image_search: bool = True,
+        activate_text_search: bool = True,
+        segment_image_query: bool = True,
     ):
         """
         Initialize the AdvancedRAG.
             - In our experiments, we utilize Grounding-DINO as the visual grounding model to localize relevant regions in the image based on the query.
-            - Then use these localized regions to perform more targeted image retrieval of relevant information. 
+            - Then use these localized regions to perform more targeted image retrieval of relevant information.
             - We also perform text retrieval using the original query along with the retrieved image information (e.g. named entities from image search results) to retrieve relevant textual information.
             - The retrieved information is then incorporated into the prompt for response generation, allowing for more accurate and contextually relevant answers.
         
         Args:
             search_pipeline: Pipeline for searching relevant information
             model_name: The model name to use for generation
+            activate_image_search: Whether to enable image retrieval (default True)
+            activate_text_search: Whether to enable text retrieval (default True)
+            segment_image_query: Whether to use Grounding DINO for visual grounding (default True)
         """
         super().__init__(search_pipeline)
         self.model_name = model_name
         # VLLM configuration
         self.max_gen_len = 64
-        # GPU utilization settings 
+        # GPU utilization settings
         self.vllm_tensor_parallel_size=torch.cuda.device_count()
         self.vllm_gpu_memory_utilization=0.65
         # These are model specific parameters to get the model to run on a single NVIDIA L40s GPU
@@ -45,15 +51,15 @@ class AdvancedRAG(BaseAgent):
         self.max_num_seqs = 2
         self.max_generation_tokens=75
         ## Search configuration
-        self.activate_image_search=True
-        self.activate_text_search=True
+        self.activate_image_search=activate_image_search
+        self.activate_text_search=activate_text_search
         self.image_search_topk = 10
         self.text_search_topk = 10
         self.image_search_score_threshold = 0.0
         self.text_search_threshold = 0.0
         self.text_query_reformulation = True
         # Module: Grounding DINO parameters
-        self.segment_image_query = True
+        self.segment_image_query = segment_image_query
         self.grounding_dino_model_id = "IDEA-Research/grounding-dino-base"
         self.grounding_dino_box_threshold = 0.4
         self.grounding_dino_text_threshold = 0.3
@@ -84,12 +90,17 @@ class AdvancedRAG(BaseAgent):
             )
             self.tokenizer = self.vllm.get_tokenizer()
 
-        # Initialize Grounding DINO
-        print(f"Initializing {self.grounding_dino_model_id}...")
+        # Initialize Grounding DINO only when needed for image search with segmentation
         device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.grounding_processor = AutoProcessor.from_pretrained(self.grounding_dino_model_id)
-        self.grounding_model = AutoModelForZeroShotObjectDetection.from_pretrained(self.grounding_dino_model_id).to(device)
         self.device = device
+        if self.activate_image_search and self.segment_image_query:
+            print(f"Initializing {self.grounding_dino_model_id}...")
+            self.grounding_processor = AutoProcessor.from_pretrained(self.grounding_dino_model_id)
+            self.grounding_model = AutoModelForZeroShotObjectDetection.from_pretrained(self.grounding_dino_model_id).to(device)
+        else:
+            print(f"Skipping Grounding DINO initialization (activate_image_search={self.activate_image_search}, segment_image_query={self.segment_image_query})")
+            self.grounding_processor = None
+            self.grounding_model = None
 
         print("Models loaded successfully")
     
@@ -218,8 +229,13 @@ class AdvancedRAG(BaseAgent):
         for query, image, message_history, text_search_results, image_search_results in zip(
             queries, images, message_histories, text_search_results_batch, image_search_results_batch
         ):
-            SYSTEM_PROMPT = ("You are a helpful assistant that truthfully answers user questions about the provided image."
-                           "Keep your response concise and to the point.")
+            if image:
+                SYSTEM_PROMPT = ("You are a helpful assistant that truthfully answers user questions about the provided image."
+                               "Keep your response concise and to the point.")
+            else:
+                SYSTEM_PROMPT = ("You are a helpful assistant that truthfully answers user questions."
+                               "Keep your response concise and to the point.")
+
             
             # Add retrieved context if available and search is not disabled
             rag_context = ""
@@ -251,10 +267,16 @@ class AdvancedRAG(BaseAgent):
                     else:
                         print(f"### DEBUG - no entities for result {i} {result}")
                 
-            messages = [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": [{"type": "image"}]}
-            ]
+            if image:
+                messages = [
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": [{"type": "image"}]}
+                ]
+            else:
+                messages = [
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                ]
+
             
             # Add conversation history for multi-turn conversations
             if message_history:
@@ -272,12 +294,17 @@ class AdvancedRAG(BaseAgent):
                 tokenize=False
             )
             
-            inputs.append({
-                "prompt": formatted_prompt,
-                "multi_modal_data": {
-                    "image": image
-                }
-            })
+            if image:
+                inputs.append({
+                    "prompt": formatted_prompt,
+                    "multi_modal_data": {
+                        "image": image
+                    }
+                })
+            else:
+                inputs.append({
+                    "prompt": formatted_prompt,
+                })
         
         return inputs
     

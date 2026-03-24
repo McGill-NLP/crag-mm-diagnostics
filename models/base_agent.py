@@ -32,6 +32,7 @@ class BaseAgent:
             Note: The web-search will be disabled in case of Task 1 (Single-source Augmentation) - so only image-search can be used in that case.
         """
         self.search_pipeline = search_pipeline
+        self.model_name = model_name
     
     def get_batch_size(self) -> int:
         """

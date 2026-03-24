@@ -564,6 +564,7 @@ class ModularEvaluation:
         query = target_example["query"]
 
         is_semantically_correct = False
+        is_correct = False
         api_response = None
 
         # Begin by assuming exact match correctness
@@ -575,7 +576,7 @@ class ModularEvaluation:
             
             if is_exact_match:
                 is_correct = is_exact_match
-            else:
+            elif self.eval_model_name:
                 # Cover semantically correct cases via LLM-as-a-judge.
                 messages = [
                     {"role": "system", "content": self.get_evaluation_system_prompt()},
@@ -590,13 +591,13 @@ class ModularEvaluation:
         elif self.task_type in ["whole","knowledge_extraction"]:
             is_exact_match = pred.strip().lower() == ground_truth.strip().lower()
         
-            messages = [
-                {"role": "system", "content": self.get_evaluation_system_prompt()},
-                {"role": "user", "content": f"Question: {query}\nGround truth: {ground_truth}\nPrediction: {pred}\n"},
-            ]
             if is_exact_match:
                 is_correct = is_exact_match
-            else:
+            elif self.eval_model_name:
+                messages = [
+                    {"role": "system", "content": self.get_evaluation_system_prompt()},
+                    {"role": "user", "content": f"Question: {query}\nGround truth: {ground_truth}\nPrediction: {pred}\n"},
+                ]    
                 api_response = self.attempt_api_call(self.openai, self.eval_model_name, messages)
                 if api_response:
                     is_semantically_correct = api_response.accuracy

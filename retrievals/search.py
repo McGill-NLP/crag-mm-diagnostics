@@ -72,10 +72,17 @@ class CustomSearchPipeline(Pipeline):
         
         self.is_private = False
 
-        if text_index_path:
+        if text_index_path or web_hf_dataset_id:
             self.web_search = MockWeb(text_index_path=text_index_path, hf_dataset_id=web_hf_dataset_id, web_hf_dataset_tag=web_hf_dataset_tag)
-        self.image_kg = ImageKG(image_index_path=image_index_path, hf_dataset_id=image_hf_dataset_id, image_hf_dataset_tag=image_hf_dataset_tag)
-        self.image_collection = self.image_kg.vector_db
+        else:
+            self.web_search = None
+
+        if image_index_path or image_hf_dataset_id:
+            self.image_kg = ImageKG(image_index_path=image_index_path, hf_dataset_id=image_hf_dataset_id, image_hf_dataset_tag=image_hf_dataset_tag)
+            self.image_collection = self.image_kg.vector_db
+        else:
+            self.image_kg = None
+            self.image_collection = None
 
         # Initialize with minimal arguments
         dummy_module = torch.nn.Module()
