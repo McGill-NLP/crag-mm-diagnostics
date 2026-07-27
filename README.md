@@ -8,8 +8,7 @@
 
 ## Illustration of the stage-wise evaluation enabled by CRAG-MMDiagnostics
 
-![Pipeline](img/pipeline_illustration.pdf)
-
+[View Pipeline Illustration](img/pipeline_illustration.pdf)
 
 ## Setup
 
