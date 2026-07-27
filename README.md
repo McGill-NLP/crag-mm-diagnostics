@@ -8,7 +8,8 @@
 
 ## Illustration of the stage-wise evaluation enabled by CRAG-MMDiagnostics
 
-[View Pipeline Illustration](img/pipeline_illustration.pdf)
+![CRAG-MMDiagnostics](img/pipeline_illustration.png)
+
 
 ## Setup
 
@@ -61,7 +62,7 @@ bash ./eval_rag.sh
 - mail at : hanseok [dot] oh [at] nyu.edu
 
 ## Citing
-If you find this dataset / code useful, please consider citing our work:
+If you find this code / dataset useful, please consider citing our work:
 
 ```bibtex
 @article{oh2026crag,
