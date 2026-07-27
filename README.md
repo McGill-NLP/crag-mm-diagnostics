@@ -1,8 +1,14 @@
 # *CRAG-MM-Diagnostics: Enabling Stage-wise Analysis Of Knowledge-Intensive VQA* 
 
 
+[![arXiv](https://img.shields.io/badge/arXiv-2607.21155-b31b1b.svg)](https://arxiv.org/abs/2607.21155)
 [![HF Link](https://img.shields.io/badge/HF%20Models-CRAGMMDiagnostics-FFD21E.svg)](https://huggingface.co/collections/McGill-NLP/crag-mm-diagnostics)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/McGill-NLP/crag-mm-diagnostics/blob/main/LICENSE)
+
+
+## Illustration of the stage-wise evaluation enabled by CRAG-MMDiagnostics
+
+![Pipeline](img/pipeline_illustration.pdf)
 
 
 ## Setup
@@ -52,4 +58,17 @@ bash ./eval_rag.sh
 ```
 
 ## Bugs or questions?
-If you have any questions about the code, feel free to open an issue on the GitHub repository.
+- If you have any questions about the code, feel free to open an issue on the GitHub repository.
+- mail at : hanseok [dot] oh [at] nyu.edu
+
+## Citing
+If you find this dataset / code useful, please consider citing our work:
+
+```bibtex
+@article{oh2026crag,
+  title={CRAG-MM-Diagnostics: Enabling Stage-Wise Analysis of Knowledge-Intensive VQA},
+  author={Oh, Hanseok and BehnamGhader, Parishad and Krojer, Benno and Lee, Hyunji and Liang, Paul and Reddy, Siva and Dankers, Verna},
+  journal={arXiv preprint arXiv:2607.21155},
+  year={2026}
+}
+```
