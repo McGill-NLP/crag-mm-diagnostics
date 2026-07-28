@@ -144,12 +144,18 @@ class ModularEvaluation:
         return outputs
 
     def batch_generate_response(self,queries : List[str | None], images: List[str | None], system_prompt: str)->List[str]:
+        if len(queries) != len(images):
+            raise ValueError(
+                "Each query must have exactly one corresponding image entry: "
+                f"got {len(queries)} queries and {len(images)} images."
+            )
+
         prompts = []
-        for query, _ in zip(queries,images):
+        for query, image in zip(queries, images):
             messages = [
                 {"role": "system", "content": system_prompt},
             ]
-            if images[0] is not None:
+            if image is not None:
                 messages.append(
                     {"role": "user", "content": [{"type": "image"}, {"type": "text", "text": f"# Question: \"{query}\"\n"}]}
                 )
@@ -186,16 +192,12 @@ class ModularEvaluation:
             response_text_list = [output.strip() for output in self.processor.batch_decode(outputs, skip_special_tokens=True)]
             
         else:
-            if images[0] is not None:
-                inputs = [
-                    {
-                        "prompt": prompt,
-                        "multi_modal_data": {"image": image}
-                    }
-                    for prompt, image in zip(prompts, images)
-                ]
-            else:
-                inputs = [{"prompt": prompt} for prompt in prompts]
+            inputs = []
+            for prompt, image in zip(prompts, images):
+                model_input = {"prompt": prompt}
+                if image is not None:
+                    model_input["multi_modal_data"] = {"image": image}
+                inputs.append(model_input)
             
             outputs = self.llm.generate(
                 inputs,
@@ -725,13 +727,27 @@ class ModularEvaluation:
             interaction_ids = batch["session_ids"]
             queries = batch["queries"]
             images = batch["images"]
-            
             # Generate responses for the current batch
             if ('grounding-dino' in self.model_name) or ('owlvit' in self.model_name):
                 parsed_response = self.batch_generate_coordinates(queries, images)
             else:
                 if 'gpt' not in self.model_name:
-                    batch_response = self.batch_generate_response(queries, images, system_prompt=self._load_system_prompt())
+                    try:
+                        batch_response = self.batch_generate_response(
+                            queries,
+                            images,
+                            system_prompt=self._load_system_prompt(),
+                        )
+                    except Exception as exc:
+                        image_states = [
+                            "none" if image is None else f"{image.mode}:{image.size}"
+                            for image in images
+                        ]
+                        raise RuntimeError(
+                            "vLLM generation failed for "
+                            f"batch {batch_idx}, session_ids={interaction_ids}, "
+                            f"images={image_states}"
+                        ) from exc
                 else:
                     batch_response = self.batch_generate_response_api(queries, images, system_prompt=self._load_system_prompt())
                 
