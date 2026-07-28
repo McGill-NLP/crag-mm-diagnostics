@@ -27,6 +27,23 @@ $ pip install -r requirements.txt
 bash ./batch_eval.sh
 ```
 
+```bash
+NUM_SAMPLES=-1  # -1 for all samples
+DATASET=McGill-NLP/crag-mm-diagnostic
+SPLIT_TYPE=full  # Options: full, disambiguous_only
+SPLIT=test
+TASK_TYPE=whole
+MODEL_NAME="Qwen/Qwen2.5-VL-3B-Instruct"
+
+python evaluate.py \
+                --model-name "$MODEL_NAME" \
+                --source-dataset-path "$DATASET" \
+                --task-type "$TASK_TYPE" \
+                --split "$SPLIT" \
+                --num-conversations "$NUM_SAMPLES" \
+                --output-dir "$OUTPUT_DIR"
+```
+
 #### 1. Language-based Visual Grounding
 - `visual_grounding` : Given image and original query, the task is to find target region's coordinates as output.
  
